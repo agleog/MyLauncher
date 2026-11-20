@@ -1,0 +1,110 @@
+plugins {
+    id 'application'
+}
+
+group = 'com.mylauncher'
+version = providers.gradleProperty('releaseVersion').getOrElse('0.1.0')
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+}
+
+application {
+    mainClass = 'com.mylauncher.setup.SetupApplication'
+    applicationName = 'MyLauncherSetup'
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'MyLauncherSetup'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+def setupImageDirectory = layout.buildDirectory.dir('setup-image/MyLauncherSetup')
+def setupPackageDirectory = layout.buildDirectory.dir('setup-package')
+def githubRepository = providers.gradleProperty('githubRepository').getOrElse('')
+
+if ((!githubRepository.isBlank()
+        && !(githubRepository ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]+/))
+        || githubRepository.contains('..')) {
+    throw new GradleException('githubRepository must use the owner/repository format.')
+}
+
+tasks.register('packageSetupAppImage') {
+    dependsOn tasks.named('installDist')
+    doLast {
+        def imageDirectory = setupImageDirectory.get().asFile
+        delete(imageDirectory.parentFile)
+        def inputDirectory = layout.buildDirectory.dir('install/MyLauncherSetup/lib').get().asFile
+        def jpackage = file("${System.getProperty('java.home')}/bin/jpackage.exe")
+        if (!jpackage.isFile()) {
+            throw new GradleException("jpackage was not found in the configured JDK: ${jpackage}")
+        }
+        exec {
+            commandLine jpackage.absolutePath,
+                    '--type', 'app-image',
+                    '--input', inputDirectory.absolutePath,
+                    '--name', 'MyLauncherSetup',
+                    '--app-version', project.version.toString(),
+                    '--main-jar', "MyLauncherSetup-${project.version}.jar",
+                    '--main-class', 'com.mylauncher.setup.SetupApplication',
+                    '--add-modules', 'java.net.http,java.prefs,java.desktop,java.management,jdk.crypto.ec',
+                    '--java-options', "-Dmylauncher.githubRepository=${githubRepository}",
+                    '--dest', imageDirectory.parentFile.absolutePath
+        }
+        if (!file("${imageDirectory}/MyLauncherSetup.exe").isFile()) {
+            throw new GradleException('jpackage completed without producing MyLauncherSetup.exe')
+        }
+    }
+}
+
+tasks.register('packageSetupExe', Exec) {
+    dependsOn tasks.named('installDist')
+    def outputDirectory = setupPackageDirectory
+    doFirst {
+        def packageDirectory = outputDirectory.get().asFile
+        delete(packageDirectory)
+        outputDirectory.get().asFile.mkdirs()
+        def inputDirectory = layout.buildDirectory.dir('install/MyLauncherSetup/lib').get().asFile
+        def jpackage = file("${System.getProperty('java.home')}/bin/jpackage.exe")
+        if (!jpackage.isFile()) {
+            throw new GradleException("jpackage was not found in the configured JDK: ${jpackage}")
+        }
+        commandLine jpackage.absolutePath,
+                '--type', 'exe',
+                '--input', inputDirectory.absolutePath,
+                '--name', 'MyLauncherSetup',
+                '--app-version', project.version.toString(),
+                '--main-jar', "MyLauncherSetup-${project.version}.jar",
+                '--main-class', 'com.mylauncher.setup.SetupApplication',
+                '--dest', packageDirectory.absolutePath,
+                '--add-modules', 'java.net.http,java.prefs,java.desktop,java.management,jdk.crypto.ec',
+                '--java-options', "-Dmylauncher.githubRepository=${githubRepository}",
+                '--win-per-user-install',
+                '--win-dir-chooser',
+                '--vendor', 'MyLauncher'
+    }
+    doLast {
+        def generated = new File(outputDirectory.get().asFile, "MyLauncherSetup-${project.version}.exe")
+        if (!generated.isFile()) {
+            throw new GradleException("jpackage did not produce the setup EXE: ${generated}")
+        }
+    }
+}

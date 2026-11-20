@@ -1,0 +1,215 @@
+.root {
+    -fx-font-family: "Segoe UI", sans-serif;
+}
+
+.app-root {
+    -fx-background-color: #101318;
+}
+
+.sidebar {
+    -fx-background-color: #15191f;
+    -fx-pref-width: 236px;
+    -fx-min-width: 205px;
+}
+
+.brand-mark {
+    -fx-alignment: center;
+    -fx-min-width: 42px;
+    -fx-min-height: 42px;
+    -fx-background-radius: 13px;
+    -fx-background-color: #a6ee55;
+    -fx-text-fill: #17200f;
+    -fx-font-size: 23px;
+    -fx-font-weight: bold;
+}
+
+.brand-copy .label:first-child {
+    -fx-text-fill: #f3f5f7;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.brand-copy .label:last-child {
+    -fx-text-fill: #7f8994;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-letter-spacing: 1.2px;
+}
+
+.nav-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10px;
+    -fx-padding: 13px 14px;
+    -fx-text-fill: #9ba4ae;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+
+.nav-item:disabled {
+    -fx-opacity: 0.58;
+}
+
+.nav-item-selected {
+    -fx-background-color: #252d32;
+    -fx-text-fill: #b7f478;
+    -fx-font-weight: bold;
+}
+
+.sidebar-edition {
+    -fx-text-fill: #77818c;
+    -fx-font-size: 11px;
+    -fx-line-spacing: 5px;
+    -fx-padding: 12px 10px 0 10px;
+}
+
+.page {
+    -fx-background-color: #101318;
+}
+
+.page-heading {
+    -fx-text-fill: #f3f5f7;
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+}
+
+.page-subtitle {
+    -fx-text-fill: #929ca6;
+    -fx-font-size: 13px;
+}
+
+.settings-scroll,
+.settings-scroll > .viewport {
+    -fx-background-color: #101318;
+    -fx-border-color: transparent;
+}
+
+.settings-card {
+    -fx-background-color: #181d23;
+    -fx-background-radius: 14px;
+    -fx-border-color: #272e35;
+    -fx-border-radius: 14px;
+    -fx-padding: 20px;
+}
+
+.card-heading {
+    -fx-text-fill: #eef1f3;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.setting-description,
+.setting-label {
+    -fx-text-fill: #a4adb6;
+    -fx-font-size: 12px;
+}
+
+.setting-value {
+    -fx-text-fill: #b7f478;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.setting-checkbox {
+    -fx-text-fill: #d3d8dc;
+}
+
+.text-field,
+.spinner {
+    -fx-background-color: #101419;
+    -fx-background-radius: 7px;
+    -fx-border-color: #303943;
+    -fx-border-radius: 7px;
+    -fx-text-fill: #e8ebee;
+}
+
+.text-field .text {
+    -fx-fill: #e8ebee;
+}
+
+.primary-button,
+.secondary-button {
+    -fx-background-radius: 8px;
+    -fx-padding: 10px 14px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.primary-button {
+    -fx-background-color: #a6ee55;
+    -fx-text-fill: #17200f;
+}
+
+.secondary-button {
+    -fx-background-color: #252d32;
+    -fx-text-fill: #d3d8dc;
+}
+
+.save-status {
+    -fx-text-fill: #b7f478;
+    -fx-font-size: 12px;
+}
+
+.account-badge {
+    -fx-background-color: #1d2329;
+    -fx-background-radius: 18px;
+    -fx-padding: 10px 15px;
+    -fx-text-fill: #a9b1ba;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+.hero-card {
+    -fx-background-color: linear-gradient(to bottom right, #26352b, #1a2928 48%, #20232d);
+    -fx-background-radius: 20px;
+    -fx-border-color: #303d36;
+    -fx-border-radius: 20px;
+    -fx-border-width: 1px;
+}
+
+.eyebrow {
+    -fx-text-fill: #b7f478;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-letter-spacing: 1.4px;
+}
+
+.hero-heading {
+    -fx-text-fill: #f3f5f7;
+    -fx-font-size: 38px;
+    -fx-font-weight: bold;
+}
+
+.hero-description {
+    -fx-text-fill: #b1bbc2;
+    -fx-font-size: 14px;
+}
+
+.status-copy .label:first-child {
+    -fx-text-fill: #78838d;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-letter-spacing: 1px;
+}
+
+.status-copy .label:last-child {
+    -fx-text-fill: #d3d8dc;
+    -fx-font-size: 12px;
+}
+
+.play-button {
+    -fx-background-color: #a6ee55;
+    -fx-background-radius: 11px;
+    -fx-padding: 15px 34px;
+    -fx-text-fill: #17200f;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.play-button:disabled {
+    -fx-opacity: 0.48;
+}
+
+.stage-note {
+    -fx-text-fill: #707a84;
+    -fx-font-size: 11px;
+}

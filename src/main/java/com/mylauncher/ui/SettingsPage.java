@@ -1,0 +1,236 @@
+package com.mylauncher.ui;
+
+import com.mylauncher.settings.LauncherSettings;
+import com.mylauncher.settings.SettingsManager;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.Slider;
+import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
+import javafx.stage.DirectoryChooser;
+import javafx.stage.Window;
+
+import java.awt.Desktop;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+public final class SettingsPage extends VBox {
+    private static final int MIN_WINDOW_WIDTH = 854;
+    private static final int MAX_WINDOW_WIDTH = 7680;
+    private static final int MIN_WINDOW_HEIGHT = 480;
+    private static final int MAX_WINDOW_HEIGHT = 4320;
+
+    private final SettingsManager settingsManager;
+    private final Slider memorySlider;
+    private final Label memoryValue;
+    private final Spinner<Integer> widthSpinner;
+    private final Spinner<Integer> heightSpinner;
+    private final CheckBox fullscreen;
+    private final TextField jvmArguments;
+    private final TextField launcherDirectory;
+    private final TextField gameDirectory;
+    private final Label saveStatus;
+
+    public SettingsPage(SettingsManager settingsManager, LauncherSettings settings) {
+        this.settingsManager = settingsManager;
+        getStyleClass().add("page");
+        setSpacing(20);
+        setPadding(new Insets(32, 38, 32, 38));
+
+        Label title = new Label("Настройки");
+        title.getStyleClass().add("page-heading");
+        Label subtitle = new Label("Параметры будут сохранены на этом компьютере.");
+        subtitle.getStyleClass().add("page-subtitle");
+
+        VBox memoryCard = settingsCard("Оперативная память");
+        int maxMemoryGiB = availableMemoryGiB();
+        memorySlider = new Slider(1, maxMemoryGiB, clamp(settings.memoryGiB(), 1, maxMemoryGiB));
+        memorySlider.setMajorTickUnit(Math.max(1, Math.ceil(maxMemoryGiB / 8.0)));
+        memorySlider.setMinorTickCount(0);
+        memorySlider.setBlockIncrement(1);
+        memorySlider.setShowTickMarks(true);
+        memorySlider.setShowTickLabels(true);
+        memoryValue = new Label();
+        memoryValue.getStyleClass().add("setting-value");
+        memorySlider.valueProperty().addListener((observable, oldValue, newValue) ->
+                memoryValue.setText(Math.round(newValue.doubleValue()) + " ГБ"));
+        memoryValue.setText(Math.round(memorySlider.getValue()) + " ГБ");
+        memoryCard.getChildren().addAll(settingDescription("Объём памяти для будущего запуска игры"),
+                memorySlider, memoryValue);
+
+        VBox gameCard = settingsCard("Настройки игры");
+        widthSpinner = integerSpinner(MIN_WINDOW_WIDTH, MAX_WINDOW_WIDTH, settings.windowWidth());
+        heightSpinner = integerSpinner(MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT, settings.windowHeight());
+        HBox dimensions = new HBox(14,
+                labeledControl("Ширина", widthSpinner),
+                labeledControl("Высота", heightSpinner));
+        fullscreen = new CheckBox("Полноэкранный режим");
+        fullscreen.setSelected(settings.fullscreen());
+        fullscreen.getStyleClass().add("setting-checkbox");
+        jvmArguments = new TextField(settings.jvmArguments());
+        jvmArguments.setPromptText("Например: -XX:+UseG1GC");
+        gameCard.getChildren().addAll(dimensions, fullscreen,
+                labeledControl("Дополнительные аргументы JVM", jvmArguments),
+                settingDescription("Будут применяться после реализации запуска Minecraft."));
+
+        VBox foldersCard = settingsCard("Папки");
+        launcherDirectory = new TextField(settings.launcherDirectory());
+        gameDirectory = new TextField(settings.gameDirectory());
+        foldersCard.getChildren().addAll(
+                directoryRow("Папка лаунчера", launcherDirectory),
+                settingDescription("Изменение пути здесь не переносит файлы приложения; папку будет использовать будущий установщик."),
+                directoryRow("Папка игры", gameDirectory),
+                new HBox(10, folderAction("Открыть папку игры", gameDirectory, ""),
+                        folderAction("Открыть mods", gameDirectory, "mods"),
+                        folderAction("Открыть config", gameDirectory, "config"))
+        );
+
+        Button saveButton = new Button("СОХРАНИТЬ НАСТРОЙКИ");
+        saveButton.getStyleClass().add("primary-button");
+        saveButton.setOnAction(event -> saveSettings());
+        saveStatus = new Label();
+        saveStatus.getStyleClass().add("save-status");
+        HBox footer = new HBox(14, saveButton, saveStatus);
+        footer.setAlignment(Pos.CENTER_LEFT);
+
+        getChildren().addAll(title, subtitle, memoryCard, gameCard, foldersCard, footer);
+    }
+
+    private VBox settingsCard(String title) {
+        VBox card = new VBox(14);
+        card.getStyleClass().add("settings-card");
+        Label heading = new Label(title);
+        heading.getStyleClass().add("card-heading");
+        card.getChildren().add(heading);
+        return card;
+    }
+
+    private Label settingDescription(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("setting-description");
+        label.setWrapText(true);
+        return label;
+    }
+
+    private VBox labeledControl(String labelText, javafx.scene.Node control) {
+        VBox box = new VBox(7);
+        Label label = new Label(labelText);
+        label.getStyleClass().add("setting-label");
+        box.getChildren().addAll(label, control);
+        VBox.setVgrow(control, Priority.NEVER);
+        return box;
+    }
+
+    private HBox directoryRow(String labelText, TextField field) {
+        Button browse = new Button("Выбрать");
+        browse.getStyleClass().add("secondary-button");
+        browse.setOnAction(event -> chooseDirectory(field, getScene() == null ? null : getScene().getWindow()));
+        VBox fieldContainer = labeledControl(labelText, field);
+        HBox row = new HBox(10, fieldContainer, browse);
+        row.setAlignment(Pos.BOTTOM_LEFT);
+        HBox.setHgrow(fieldContainer, Priority.ALWAYS);
+        return row;
+    }
+
+    private Button folderAction(String title, TextField rootField, String child) {
+        Button button = new Button(title);
+        button.getStyleClass().add("secondary-button");
+        button.setOnAction(event -> openDirectory(rootField, child));
+        return button;
+    }
+
+    private void chooseDirectory(TextField field, Window owner) {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Выберите папку");
+        Path current = parsePath(field.getText());
+        if (Files.isDirectory(current)) {
+            chooser.setInitialDirectory(current.toFile());
+        }
+        java.io.File selected = chooser.showDialog(owner);
+        if (selected != null) {
+            field.setText(selected.toPath().toAbsolutePath().normalize().toString());
+        }
+    }
+
+    private void openDirectory(TextField rootField, String child) {
+        try {
+            Path directory = parsePath(rootField.getText());
+            if (!child.isEmpty()) {
+                directory = directory.resolve(child);
+            }
+            Files.createDirectories(directory);
+            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                throw new IOException("Открытие папок не поддерживается в этой среде.");
+            }
+            Desktop.getDesktop().open(directory.toFile());
+        } catch (IOException | RuntimeException exception) {
+            showError("Не удалось открыть папку", exception.getMessage());
+        }
+    }
+
+    private void saveSettings() {
+        try {
+            int memoryGiB = (int) Math.round(memorySlider.getValue());
+            int width = widthSpinner.getValue();
+            int height = heightSpinner.getValue();
+            String arguments = jvmArguments.getText().strip();
+            if (arguments.contains("\n") || arguments.contains("\r")) {
+                throw new IllegalArgumentException("Аргументы JVM должны быть указаны в одной строке.");
+            }
+            String launcherPath = parsePath(launcherDirectory.getText()).toString();
+            String gamePath = parsePath(gameDirectory.getText()).toString();
+
+            settingsManager.save(new LauncherSettings(memoryGiB, width, height, fullscreen.isSelected(),
+                    arguments, launcherPath, gamePath));
+            saveStatus.setText("Настройки сохранены");
+        } catch (IOException | IllegalArgumentException exception) {
+            saveStatus.setText("");
+            showError("Не удалось сохранить настройки", exception.getMessage());
+        }
+    }
+
+    private Path parsePath(String text) {
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("Укажите папку.");
+        }
+        return Path.of(text.strip()).toAbsolutePath().normalize();
+    }
+
+    private void showError(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(title);
+        alert.setContentText(message == null || message.isBlank() ? "Причина не указана." : message);
+        alert.showAndWait();
+    }
+
+    private static Spinner<Integer> integerSpinner(int min, int max, int value) {
+        Spinner<Integer> spinner = new Spinner<>();
+        spinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(min, max, clamp(value, min, max), 10));
+        spinner.setEditable(false);
+        spinner.setPrefWidth(140);
+        return spinner;
+    }
+
+    private static int availableMemoryGiB() {
+        java.lang.management.OperatingSystemMXBean bean = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+        long totalBytes = bean instanceof com.sun.management.OperatingSystemMXBean extended
+                ? extended.getTotalMemorySize()
+                : Runtime.getRuntime().maxMemory();
+        long totalGiB = totalBytes / (1024L * 1024 * 1024);
+        return Math.clamp((int) (totalGiB - 1), 1, 64);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.clamp(value, min, max);
+    }
+}

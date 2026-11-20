@@ -1,0 +1,102 @@
+plugins {
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'com.mylauncher'
+version = providers.gradleProperty('releaseVersion').getOrElse('0.1.0')
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+}
+
+javafx {
+    version = '21.0.6'
+    modules = ['javafx.controls']
+}
+
+application {
+    mainClass = 'com.mylauncher.Main'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+def launcherImageDirectory = layout.buildDirectory.dir('launcher-image/MyLauncher')
+
+tasks.register('packageLauncher') {
+    dependsOn tasks.named('installDist')
+    doLast {
+        def imageDirectory = launcherImageDirectory.get().asFile
+        delete(imageDirectory.parentFile)
+        def inputDirectory = layout.buildDirectory.dir('install/MyLauncher/lib').get().asFile
+        def jpackage = file("${System.getProperty('java.home')}/bin/jpackage.exe")
+        if (!jpackage.isFile()) {
+            throw new GradleException("jpackage was not found in the configured JDK: ${jpackage}")
+        }
+        exec {
+            commandLine jpackage.absolutePath,
+                    '--type', 'app-image',
+                    '--input', inputDirectory.absolutePath,
+                    '--name', 'MyLauncher',
+                    '--app-version', project.version.toString(),
+                    '--main-jar', "MyLauncher-${project.version}.jar",
+                    '--main-class', 'com.mylauncher.Main',
+                    '--module-path', inputDirectory.absolutePath,
+                    '--add-modules', 'javafx.controls,javafx.graphics,javafx.base,java.management,jdk.management',
+                    '--java-options', '--add-modules=javafx.controls',
+                    '--dest', imageDirectory.parentFile.absolutePath
+        }
+        if (!file("${imageDirectory}/MyLauncher.exe").isFile()) {
+            throw new GradleException('jpackage completed without producing MyLauncher.exe')
+        }
+    }
+}
+
+tasks.register('packageLauncherZip', Zip) {
+    dependsOn tasks.named('packageLauncher')
+    from(launcherImageDirectory)
+    archiveFileName = 'MyLauncher-windows-x64.zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+}
+
+tasks.register('packageLauncherChecksum') {
+    dependsOn tasks.named('packageLauncherZip')
+    doLast {
+        def archive = tasks.named('packageLauncherZip').get().archiveFile.get().asFile
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(archive.bytes)
+                .collect { String.format('%02x', it & 0xff) }.join()
+        file("${archive.absolutePath}.sha256").text = "${digest}  ${archive.name}\n"
+    }
+}
+
+tasks.register('packageSetupExe') {
+    dependsOn ':installer:packageSetupExe'
+    doLast {
+        def installerArchive = project(':installer').layout.buildDirectory
+                .file("setup-package/MyLauncherSetup-${project(':installer').version}.exe").get().asFile
+        def distributionsDirectory = layout.buildDirectory.dir('distributions').get().asFile
+        def output = new File(distributionsDirectory, 'MyLauncherSetup.exe')
+        if (!installerArchive.isFile()) {
+            throw new GradleException("Setup installer EXE was not produced: ${installerArchive}")
+        }
+        distributionsDirectory.mkdirs()
+        java.nio.file.Files.copy(installerArchive.toPath(), output.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+}
