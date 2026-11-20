@@ -17,6 +17,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
 }
 
@@ -27,6 +28,22 @@ javafx {
 
 application {
     mainClass = 'com.mylauncher.Main'
+}
+
+def githubRepository = providers.gradleProperty('githubRepository').getOrElse('')
+if ((!githubRepository.isBlank()
+        && !(githubRepository ==~ /[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]+/))
+        || githubRepository.contains('..')) {
+    throw new GradleException('githubRepository must use the owner/repository format.')
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+                'Implementation-Version': project.version.toString(),
+                'Specification-Title': githubRepository
+        )
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {

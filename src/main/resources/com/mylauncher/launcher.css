@@ -158,6 +158,11 @@
     -fx-font-weight: bold;
 }
 
+.update-status {
+    -fx-text-fill: #aab4bd;
+    -fx-font-size: 11px;
+}
+
 .hero-card {
     -fx-background-color: linear-gradient(to bottom right, #26352b, #1a2928 48%, #20232d);
     -fx-background-radius: 20px;

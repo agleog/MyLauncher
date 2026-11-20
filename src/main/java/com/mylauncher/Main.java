@@ -2,13 +2,17 @@ package com.mylauncher;
 
 import com.mylauncher.settings.LauncherSettings;
 import com.mylauncher.settings.SettingsManager;
+import com.mylauncher.updater.LauncherUpdateService;
+import com.mylauncher.updater.ReleaseInfo;
 import com.mylauncher.ui.SettingsPage;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.concurrent.Task;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -19,12 +23,16 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class Main extends Application {
     private BorderPane root;
     private Button homeButton;
     private Button settingsButton;
     private ScrollPane settingsScroll;
+    private final LauncherUpdateService updateService = new LauncherUpdateService();
+    private ReleaseInfo availableUpdate;
+    private String updateStatus = "Проверяем обновления…";
 
     @Override
     public void start(Stage stage) throws IOException {
@@ -50,6 +58,7 @@ public final class Main extends Application {
         stage.setMinHeight(560);
         stage.setScene(scene);
         stage.show();
+        checkForUpdates();
     }
 
     private VBox createSidebar() {
@@ -119,11 +128,20 @@ public final class Main extends Application {
         page.getStyleClass().add("page");
         page.setPadding(new Insets(32, 38, 32, 38));
 
-        HBox topBar = new HBox();
+        HBox topBar = new HBox(12);
         topBar.setAlignment(Pos.CENTER_RIGHT);
+        Label updateStatusLabel = new Label(updateStatus);
+        updateStatusLabel.getStyleClass().add("update-status");
+        Button updateButton = new Button("ОБНОВИТЬ");
+        updateButton.getStyleClass().add("primary-button");
+        updateButton.setVisible(availableUpdate != null);
+        updateButton.setManaged(availableUpdate != null);
+        if (availableUpdate != null) {
+            updateButton.setOnAction(event -> installUpdate(updateButton, updateStatusLabel));
+        }
         Label account = new Label("АККАУНТ НЕ ПОДКЛЮЧЁН");
         account.getStyleClass().add("account-badge");
-        topBar.getChildren().add(account);
+        topBar.getChildren().addAll(updateStatusLabel, updateButton, account);
 
         VBox hero = new VBox(18);
         hero.getStyleClass().add("hero-card");
@@ -159,6 +177,74 @@ public final class Main extends Application {
 
         page.getChildren().addAll(topBar, hero, statusRow, note);
         return page;
+    }
+
+    private void checkForUpdates() {
+        Package launcherPackage = Main.class.getPackage();
+        String currentVersion = launcherPackage.getImplementationVersion();
+        String releaseRepository = launcherPackage.getSpecificationTitle();
+        if (releaseRepository == null || releaseRepository.isBlank()
+                || currentVersion == null || currentVersion.isBlank()) {
+            updateStatus = "Проверка обновлений недоступна в этой сборке";
+            refreshHomePage();
+            return;
+        }
+
+        Task<Optional<ReleaseInfo>> checkTask = new Task<>() {
+            @Override
+            protected Optional<ReleaseInfo> call() throws Exception {
+                return updateService.checkForUpdate(releaseRepository, currentVersion);
+            }
+        };
+        checkTask.setOnSucceeded(event -> {
+            availableUpdate = checkTask.getValue().orElse(null);
+            updateStatus = availableUpdate == null
+                    ? "Установлена последняя версия"
+                    : "Доступна версия " + availableUpdate.version();
+            refreshHomePage();
+        });
+        checkTask.setOnFailed(event -> {
+            updateStatus = "Не удалось проверить обновления: " + safeMessage(checkTask.getException());
+            refreshHomePage();
+        });
+        Thread checkThread = new Thread(checkTask, "launcher-update-check");
+        checkThread.setDaemon(true);
+        checkThread.start();
+    }
+
+    private void installUpdate(Button updateButton, Label statusLabel) {
+        ReleaseInfo release = availableUpdate;
+        if (release == null) {
+            return;
+        }
+        updateButton.setDisable(true);
+        statusLabel.setText("Загружаем обновление " + release.version() + "…");
+        Task<Void> updateTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                updateService.downloadAndApply(release);
+                return null;
+            }
+        };
+        updateTask.setOnSucceeded(event -> Platform.exit());
+        updateTask.setOnFailed(event -> {
+            statusLabel.setText("Ошибка обновления: " + safeMessage(updateTask.getException()));
+            updateButton.setDisable(false);
+        });
+        Thread updateThread = new Thread(updateTask, "launcher-update-install");
+        updateThread.setDaemon(true);
+        updateThread.start();
+    }
+
+    private void refreshHomePage() {
+        if (root.getCenter() != null && root.getCenter().getStyleClass().contains("page")) {
+            root.setCenter(createHomePage());
+        }
+    }
+
+    private static String safeMessage(Throwable exception) {
+        String message = exception == null ? null : exception.getMessage();
+        return message == null || message.isBlank() ? "Неизвестная ошибка" : message;
     }
 
     public static void main(String[] args) {
