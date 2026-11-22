@@ -18,6 +18,7 @@ repositories {
 
 dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+    implementation 'net.java.dev.jna:jna-platform:5.16.0'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
 }
 
@@ -28,6 +29,13 @@ javafx {
 
 application {
     mainClass = 'com.mylauncher.Main'
+}
+
+tasks.named('run') {
+    dependsOn tasks.named('test')
+    workingDir = project.projectDir
+    description = 'Tests and launches the latest source version from the project directory'
+    group = 'application'
 }
 
 def githubRepository = providers.gradleProperty('githubRepository').getOrElse('')
@@ -75,7 +83,7 @@ tasks.register('packageLauncher') {
                     '--main-jar', "MyLauncher-${project.version}.jar",
                     '--main-class', 'com.mylauncher.Main',
                     '--module-path', inputDirectory.absolutePath,
-                    '--add-modules', 'javafx.controls,javafx.graphics,javafx.base,java.management,jdk.management',
+                    '--add-modules', 'javafx.controls,javafx.graphics,javafx.base,java.desktop,java.logging,java.net.http,java.prefs,java.management,jdk.management,jdk.crypto.ec',
                     '--java-options', '--add-modules=javafx.controls',
                     '--dest', imageDirectory.parentFile.absolutePath
         }

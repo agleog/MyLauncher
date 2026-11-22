@@ -8,7 +8,7 @@ computer is not required.
 
 The installer needs the public GitHub repository that will publish launcher
 releases. Enter its real `owner/repository` name in the setup window; no
-repository name or Microsoft application ID is built into this project.
+repository name is built into this project.
 
 The release workflow configures the repository name inside the setup EXE, so
 the user does not need to type it. Each GitHub Release must include:

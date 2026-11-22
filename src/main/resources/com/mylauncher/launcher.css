@@ -126,6 +126,21 @@
     -fx-fill: #e8ebee;
 }
 
+.console-output {
+    -fx-control-inner-background: #0c0f13;
+    -fx-background-color: #0c0f13;
+    -fx-background-radius: 10px;
+    -fx-border-color: #272e35;
+    -fx-border-radius: 10px;
+    -fx-text-fill: #d3d8dc;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 11px;
+}
+
+.console-output .content {
+    -fx-background-color: #0c0f13;
+}
+
 .primary-button,
 .secondary-button {
     -fx-background-radius: 8px;
@@ -156,6 +171,13 @@
     -fx-text-fill: #a9b1ba;
     -fx-font-size: 10px;
     -fx-font-weight: bold;
+}
+
+.account-avatar {
+    -fx-background-color: #252d32;
+    -fx-background-radius: 9px;
+    -fx-border-color: #35413a;
+    -fx-border-radius: 9px;
 }
 
 .update-status {

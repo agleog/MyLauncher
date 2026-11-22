@@ -2,12 +2,16 @@ package com.mylauncher.ui;
 
 import com.mylauncher.settings.LauncherSettings;
 import com.mylauncher.settings.SettingsManager;
+import com.mylauncher.javaruntime.TemurinRuntimeManager;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.Hyperlink;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
@@ -22,6 +26,7 @@ import java.awt.Desktop;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URI;
 
 public final class SettingsPage extends VBox {
     private static final int MIN_WINDOW_WIDTH = 854;
@@ -39,6 +44,13 @@ public final class SettingsPage extends VBox {
     private final TextField launcherDirectory;
     private final TextField gameDirectory;
     private final Label saveStatus;
+    private final TemurinRuntimeManager runtimeManager = new TemurinRuntimeManager();
+    private final Label runtimeStatus;
+    private final ProgressBar runtimeProgress;
+    private final Button checkRuntimeButton;
+    private final Button installRuntimeButton;
+    private final Button cancelRuntimeButton;
+    private Task<TemurinRuntimeManager.RuntimeInfo> runtimeTask;
 
     public SettingsPage(SettingsManager settingsManager, LauncherSettings settings) {
         this.settingsManager = settingsManager;
@@ -94,6 +106,43 @@ public final class SettingsPage extends VBox {
                         folderAction("Открыть config", gameDirectory, "config"))
         );
 
+        VBox accountCard = settingsCard("Аккаунт Ely.by");
+        Hyperlink registrationLink = new Hyperlink("Открыть сайт Ely.by");
+        registrationLink.setOnAction(event -> openElyByAccountPage());
+        accountCard.getChildren().addAll(
+                settingDescription("Для входа используйте аккаунт Ely.by. Пароль и код 2FA лаунчер не сохраняет; игровой токен хранится с защитой Windows."),
+                registrationLink,
+                settingDescription("Вход через Ely.by не проверяет наличие лицензии Minecraft Java Edition и не предоставляет её.")
+        );
+
+        VBox javaCard = settingsCard("Java Runtime");
+        runtimeStatus = new Label(initialRuntimeStatus(settings.gameDirectory()));
+        runtimeStatus.getStyleClass().add("setting-description");
+        runtimeStatus.setWrapText(true);
+        runtimeProgress = new ProgressBar();
+        runtimeProgress.setMaxWidth(Double.MAX_VALUE);
+        runtimeProgress.setVisible(false);
+        checkRuntimeButton = new Button("ПРОВЕРИТЬ JAVA");
+        checkRuntimeButton.getStyleClass().add("secondary-button");
+        checkRuntimeButton.setOnAction(event -> checkRuntime());
+        installRuntimeButton = new Button("УСТАНОВИТЬ TEMURIN 21");
+        installRuntimeButton.getStyleClass().add("primary-button");
+        installRuntimeButton.setOnAction(event -> installRuntime());
+        cancelRuntimeButton = new Button("ОТМЕНИТЬ");
+        cancelRuntimeButton.getStyleClass().add("secondary-button");
+        cancelRuntimeButton.setDisable(true);
+        cancelRuntimeButton.setOnAction(event -> {
+            if (runtimeTask != null) {
+                runtimeTask.cancel(true);
+            }
+        });
+        javaCard.getChildren().addAll(
+                settingDescription("Для Minecraft потребуется отдельная Eclipse Temurin Java 21 x64. Она будет установлена в папку игры и проверена перед использованием."),
+                runtimeStatus,
+                runtimeProgress,
+                new HBox(10, checkRuntimeButton, installRuntimeButton, cancelRuntimeButton)
+        );
+
         Button saveButton = new Button("СОХРАНИТЬ НАСТРОЙКИ");
         saveButton.getStyleClass().add("primary-button");
         saveButton.setOnAction(event -> saveSettings());
@@ -102,7 +151,89 @@ public final class SettingsPage extends VBox {
         HBox footer = new HBox(14, saveButton, saveStatus);
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        getChildren().addAll(title, subtitle, memoryCard, gameCard, foldersCard, footer);
+        getChildren().addAll(title, subtitle, memoryCard, gameCard, foldersCard, javaCard, accountCard, footer);
+    }
+
+    private String initialRuntimeStatus(String configuredGameDirectory) {
+        try {
+            Path javaExecutable = runtimeManager.runtimeHome(Path.of(configuredGameDirectory))
+                    .resolve("bin").resolve("java.exe");
+            return Files.isRegularFile(javaExecutable)
+                    ? "Найдена Java по пути: " + javaExecutable + ". Нажмите «Проверить Java»."
+                    : "Java 21 пока не установлена.";
+        } catch (RuntimeException exception) {
+            return "Не удалось определить папку Java: " + exception.getMessage();
+        }
+    }
+
+    private void checkRuntime() {
+        final Path gamePath;
+        try {
+            gamePath = Path.of(settingsManager.load().gameDirectory()).toAbsolutePath().normalize();
+        } catch (IOException | RuntimeException exception) {
+            showError("Не удалось проверить Java", exception.getMessage());
+            return;
+        }
+        startRuntimeTask(new Task<>() {
+            @Override
+            protected TemurinRuntimeManager.RuntimeInfo call() throws Exception {
+                updateMessage("Проверяем Eclipse Temurin Java 21 x64…");
+                return runtimeManager.verify(gamePath);
+            }
+        });
+    }
+
+    private void installRuntime() {
+        final Path gamePath;
+        try {
+            gamePath = Path.of(settingsManager.load().gameDirectory()).toAbsolutePath().normalize();
+        } catch (IOException | RuntimeException exception) {
+            showError("Не удалось установить Java", exception.getMessage());
+            return;
+        }
+        startRuntimeTask(new Task<>() {
+            @Override
+            protected TemurinRuntimeManager.RuntimeInfo call() throws Exception {
+                return runtimeManager.install(gamePath,
+                        (message, completedBytes, totalBytes) -> {
+                            updateMessage(message);
+                            updateProgress(completedBytes, totalBytes);
+                        },
+                        this::isCancelled);
+            }
+        });
+    }
+
+    private void startRuntimeTask(Task<TemurinRuntimeManager.RuntimeInfo> task) {
+        if (runtimeTask != null && !runtimeTask.isDone()) {
+            return;
+        }
+        runtimeTask = task;
+        checkRuntimeButton.setDisable(true);
+        installRuntimeButton.setDisable(true);
+        cancelRuntimeButton.setDisable(false);
+        runtimeProgress.progressProperty().bind(task.progressProperty());
+        runtimeProgress.setVisible(true);
+        runtimeStatus.textProperty().bind(task.messageProperty());
+        task.setOnSucceeded(event -> finishRuntimeTask(
+                "Java " + task.getValue().version() + " (Temurin, " + task.getValue().architecture()
+                        + ") проверена: " + task.getValue().javaHome().resolve("bin").resolve("java.exe")));
+        task.setOnFailed(event -> finishRuntimeTask("Ошибка работы с Java: "
+                + (task.getException() == null ? "Неизвестная ошибка" : task.getException().getMessage())));
+        task.setOnCancelled(event -> finishRuntimeTask("Операция с Java отменена."));
+        Thread thread = new Thread(task, "temurin-java-runtime");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void finishRuntimeTask(String message) {
+        runtimeStatus.textProperty().unbind();
+        runtimeStatus.setText(message);
+        runtimeProgress.progressProperty().unbind();
+        runtimeProgress.setVisible(false);
+        checkRuntimeButton.setDisable(false);
+        installRuntimeButton.setDisable(false);
+        cancelRuntimeButton.setDisable(true);
     }
 
     private VBox settingsCard(String title) {
@@ -188,7 +319,6 @@ public final class SettingsPage extends VBox {
             }
             String launcherPath = parsePath(launcherDirectory.getText()).toString();
             String gamePath = parsePath(gameDirectory.getText()).toString();
-
             settingsManager.save(new LauncherSettings(memoryGiB, width, height, fullscreen.isSelected(),
                     arguments, launcherPath, gamePath));
             saveStatus.setText("Настройки сохранены");
@@ -211,6 +341,17 @@ public final class SettingsPage extends VBox {
         alert.setHeaderText(title);
         alert.setContentText(message == null || message.isBlank() ? "Причина не указана." : message);
         alert.showAndWait();
+    }
+
+    private void openElyByAccountPage() {
+        try {
+            if (!Desktop.isDesktopSupported()) {
+                throw new IOException("Открытие браузера не поддерживается в этой среде.");
+            }
+            Desktop.getDesktop().browse(URI.create("https://ely.by/"));
+        } catch (IOException | RuntimeException exception) {
+            showError("Не удалось открыть Ely.by", exception.getMessage());
+        }
     }
 
     private static Spinner<Integer> integerSpinner(int min, int max, int value) {

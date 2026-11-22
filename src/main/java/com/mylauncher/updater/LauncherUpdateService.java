@@ -18,7 +18,7 @@ public final class LauncherUpdateService {
     private static final Set<String> ARCHIVE_ROOTS = Set.of("app", "runtime", "MyLauncher.exe");
     private static final long MAX_UNCOMPRESSED_BYTES = 2L * 1024 * 1024 * 1024;
     private static final int MAX_ARCHIVE_ENTRIES = 100_000;
-    private static final String HELPER_CLASS = "com.mylauncher.updater.LauncherUpdateHelper";
+    private static final String UPDATE_SCRIPT = "apply-update.ps1";
     private final GitHubReleaseClient releaseClient = new GitHubReleaseClient();
 
     public Optional<ReleaseInfo> checkForUpdate(String repository, String currentVersion)
@@ -35,13 +35,12 @@ public final class LauncherUpdateService {
         if (installationParent == null) {
             throw new IOException("Не удалось определить папку установки лаунчера.");
         }
-        Path runtimeJava = installationDirectory.resolve("runtime").resolve("bin").resolve("java.exe");
-        if (!Files.isRegularFile(runtimeJava) || !Files.isDirectory(installationDirectory.resolve("app"))) {
+        if (!Files.isDirectory(installationDirectory.resolve("runtime"))
+                || !Files.isDirectory(installationDirectory.resolve("app"))) {
             throw new IOException("Автообновление работает только для установленного MyLauncher.exe.");
         }
 
         Path staging = Files.createTempDirectory(installationParent, ".mylauncher-update-");
-        Path helperDirectory = null;
         boolean helperStarted = false;
         try {
             Path archive = staging.resolve(GitHubReleaseClient.ARCHIVE_NAME);
@@ -62,12 +61,15 @@ public final class LauncherUpdateService {
 
             Path stagedImage = staging.resolve("image");
             extractAndValidate(archive, stagedImage);
-            helperDirectory = Files.createTempDirectory("mylauncher-update-helper-");
-            copyHelperClass(helperDirectory);
+            Path updateScript = staging.resolve(UPDATE_SCRIPT);
+            copyUpdateScript(updateScript);
             Path helperLog = Path.of(System.getProperty("java.io.tmpdir"), "MyLauncher-update.log");
-            new ProcessBuilder(runtimeJava.toString(), "-cp", helperDirectory.toString(), HELPER_CLASS,
-                    Long.toString(ProcessHandle.current().pid()), installationDirectory.toString(),
-                    stagedImage.toString(), staging.toString())
+            Path powershell = windowsPowerShell();
+            new ProcessBuilder(powershell.toString(), "-NoProfile", "-NonInteractive",
+                    "-ExecutionPolicy", "Bypass", "-File", updateScript.toString(),
+                    "-ParentPid", Long.toString(ProcessHandle.current().pid()),
+                    "-InstallationDirectory", installationDirectory.toString(),
+                    "-StagedImage", stagedImage.toString(), "-StagingDirectory", staging.toString())
                     .redirectErrorStream(true)
                     .redirectOutput(helperLog.toFile())
                     .start();
@@ -75,9 +77,6 @@ public final class LauncherUpdateService {
         } finally {
             if (!helperStarted) {
                 deleteTree(staging);
-                if (helperDirectory != null) {
-                    deleteTree(helperDirectory);
-                }
             }
         }
     }
@@ -92,15 +91,25 @@ public final class LauncherUpdateService {
         return executable;
     }
 
-    private static void copyHelperClass(Path helperDirectory) throws IOException {
-        Path classFile = helperDirectory.resolve(HELPER_CLASS.replace('.', '/') + ".class");
-        Files.createDirectories(classFile.getParent());
-        try (InputStream input = LauncherUpdateService.class.getResourceAsStream("LauncherUpdateHelper.class")) {
+    private static void copyUpdateScript(Path destination) throws IOException {
+        try (InputStream input = LauncherUpdateService.class.getResourceAsStream(UPDATE_SCRIPT)) {
             if (input == null) {
-                throw new IOException("Не удалось подготовить безопасный процесс обновления.");
+                throw new IOException("Не удалось подготовить процесс установки обновления.");
             }
-            Files.copy(input, classFile);
+            Files.copy(input, destination);
         }
+    }
+
+    private static Path windowsPowerShell() throws IOException {
+        String systemRoot = System.getenv("SystemRoot");
+        if (systemRoot == null || systemRoot.isBlank()) {
+            throw new IOException("Не удалось найти Windows PowerShell.");
+        }
+        Path executable = Path.of(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+        if (!Files.isRegularFile(executable)) {
+            throw new IOException("Не удалось найти Windows PowerShell: " + executable);
+        }
+        return executable;
     }
 
     static void extractAndValidate(Path archive, Path destination) throws IOException {
