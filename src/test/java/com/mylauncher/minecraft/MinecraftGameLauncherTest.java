@@ -73,7 +73,7 @@ class MinecraftGameLauncherTest {
                 """);
         MinecraftAccount account = new MinecraftAccount("0123456789abcdef0123456789abcdef", "Player",
                 "ely-session-token", "", "01234567-89ab-cdef-0123-456789abcdef", AuthProvider.ELY_BY);
-        LauncherSettings settings = new LauncherSettings(6, 1280, 720, false, "", "", "");
+        LauncherSettings settings = new LauncherSettings(6, 1280, 720, false, "", "", "", "");
 
         List<String> command = MinecraftGameLauncher.buildCommand(temporaryDirectory,
                 Path.of("runtime", "bin", "java.exe"), Path.of("authlib-injector.jar"),
@@ -103,7 +103,7 @@ class MinecraftGameLauncherTest {
         JsonNode vanilla = objectMapper.readTree("""
                 {"id":"1.21.1","assetIndex":{"id":"17"},"libraries":[]}
                 """);
-        LauncherSettings settings = new LauncherSettings(4, 1280, 720, false, "", "", "");
+        LauncherSettings settings = new LauncherSettings(4, 1280, 720, false, "", "", "", "");
         MinecraftAccount account = new MinecraftAccount("0123456789abcdef0123456789abcdef", "Player",
                 "token", "", "01234567-89ab-cdef-0123-456789abcdef", AuthProvider.UNSUPPORTED);
 

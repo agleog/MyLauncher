@@ -37,7 +37,8 @@ public final class SettingsManager {
                 readBoolean(properties, defaults.fullscreen()),
                 properties.getProperty("jvmArguments", defaults.jvmArguments()),
                 properties.getProperty("launcherDirectory", defaults.launcherDirectory()),
-                properties.getProperty("gameDirectory", defaults.gameDirectory())
+                properties.getProperty("gameDirectory", defaults.gameDirectory()),
+                properties.getProperty("backgroundImagePath", defaults.backgroundImagePath())
         );
     }
 
@@ -50,6 +51,7 @@ public final class SettingsManager {
         properties.setProperty("jvmArguments", settings.jvmArguments());
         properties.setProperty("launcherDirectory", settings.launcherDirectory());
         properties.setProperty("gameDirectory", settings.gameDirectory());
+        properties.setProperty("backgroundImagePath", settings.backgroundImagePath());
 
         Path parent = settingsFile.getParent();
         Files.createDirectories(parent);
@@ -77,7 +79,8 @@ public final class SettingsManager {
                 false,
                 "",
                 defaultLocalDirectory().resolve(APP_DIRECTORY).toString(),
-                defaultRoamingDirectory().resolve(".mylauncher").resolve("Game").toString()
+                defaultRoamingDirectory().resolve(".mylauncher").resolve("Game").toString(),
+                ""
         );
     }
 

@@ -54,6 +54,14 @@ local disk check.
 Minecraft 1.21.1's official asset index contains about 829 MB of assets. The
 home-page button can recheck and repair the installed files.
 
+## Settings
+
+The settings page lets you choose game memory, window resolution, fullscreen
+mode, extra JVM arguments, and the game-data directory. You can also select a
+PNG, JPEG, GIF, or BMP image for the home-page background; clear the selection
+to restore the default theme. The configured image path and other settings are
+stored in `%APPDATA%\MyLauncher\settings.properties`.
+
 ## NeoForge 21.1.251
 
 The **УСТАНОВИТЬ ИГРУ** button performs the complete setup in one operation:

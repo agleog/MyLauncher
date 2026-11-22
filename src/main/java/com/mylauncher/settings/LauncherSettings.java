@@ -7,6 +7,7 @@ public record LauncherSettings(
         boolean fullscreen,
         String jvmArguments,
         String launcherDirectory,
-        String gameDirectory
+        String gameDirectory,
+        String backgroundImagePath
 ) {
 }

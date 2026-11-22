@@ -20,6 +20,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 import javafx.stage.Window;
 
 import java.awt.Desktop;
@@ -43,6 +44,7 @@ public final class SettingsPage extends VBox {
     private final TextField jvmArguments;
     private final TextField launcherDirectory;
     private final TextField gameDirectory;
+    private final TextField backgroundImagePath;
     private final Label saveStatus;
     private final TemurinRuntimeManager runtimeManager = new TemurinRuntimeManager();
     private final Label runtimeStatus;
@@ -92,7 +94,7 @@ public final class SettingsPage extends VBox {
         jvmArguments.setPromptText("Например: -XX:+UseG1GC");
         gameCard.getChildren().addAll(dimensions, fullscreen,
                 labeledControl("Дополнительные аргументы JVM", jvmArguments),
-                settingDescription("Будут применяться после реализации запуска Minecraft."));
+                settingDescription("Аргументы применяются при запуске Minecraft после стандартных параметров Java."));
 
         VBox foldersCard = settingsCard("Папки");
         launcherDirectory = new TextField(settings.launcherDirectory());
@@ -104,6 +106,24 @@ public final class SettingsPage extends VBox {
                 new HBox(10, folderAction("Открыть папку игры", gameDirectory, ""),
                         folderAction("Открыть mods", gameDirectory, "mods"),
                         folderAction("Открыть config", gameDirectory, "config"))
+        );
+
+        VBox backgroundCard = settingsCard("Фон главной страницы");
+        backgroundImagePath = new TextField(settings.backgroundImagePath());
+        backgroundImagePath.setPromptText("Не выбран");
+        Button chooseBackground = new Button("ВЫБРАТЬ ИЗОБРАЖЕНИЕ");
+        chooseBackground.getStyleClass().add("secondary-button");
+        chooseBackground.setOnAction(event -> chooseBackgroundImage());
+        Button clearBackground = new Button("СБРОСИТЬ");
+        clearBackground.getStyleClass().add("secondary-button");
+        clearBackground.setOnAction(event -> {
+            backgroundImagePath.clear();
+            saveSettings();
+        });
+        backgroundCard.getChildren().addAll(
+                settingDescription("Выберите изображение для главного экрана. Поддерживаются PNG, JPEG, GIF и BMP."),
+                backgroundImagePath,
+                new HBox(10, chooseBackground, clearBackground)
         );
 
         VBox accountCard = settingsCard("Аккаунт Ely.by");
@@ -151,7 +171,8 @@ public final class SettingsPage extends VBox {
         HBox footer = new HBox(14, saveButton, saveStatus);
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        getChildren().addAll(title, subtitle, memoryCard, gameCard, foldersCard, javaCard, accountCard, footer);
+        getChildren().addAll(title, subtitle, memoryCard, gameCard, foldersCard, backgroundCard,
+                javaCard, accountCard, footer);
     }
 
     private String initialRuntimeStatus(String configuredGameDirectory) {
@@ -319,8 +340,10 @@ public final class SettingsPage extends VBox {
             }
             String launcherPath = parsePath(launcherDirectory.getText()).toString();
             String gamePath = parsePath(gameDirectory.getText()).toString();
+            String backgroundPath = backgroundImagePath.getText().isBlank()
+                    ? "" : validateBackgroundImage(backgroundImagePath.getText()).toString();
             settingsManager.save(new LauncherSettings(memoryGiB, width, height, fullscreen.isSelected(),
-                    arguments, launcherPath, gamePath));
+                    arguments, launcherPath, gamePath, backgroundPath));
             saveStatus.setText("Настройки сохранены");
         } catch (IOException | IllegalArgumentException exception) {
             saveStatus.setText("");
@@ -333,6 +356,45 @@ public final class SettingsPage extends VBox {
             throw new IllegalArgumentException("Укажите папку.");
         }
         return Path.of(text.strip()).toAbsolutePath().normalize();
+    }
+
+    private Path validateBackgroundImage(String text) throws IOException {
+        Path path = parsePath(text);
+        String fileName = path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        if (!Files.isRegularFile(path)
+                || !(fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")
+                || fileName.endsWith(".gif") || fileName.endsWith(".bmp"))) {
+            throw new IOException("Выберите существующий файл изображения PNG, JPEG, GIF или BMP.");
+        }
+        return path;
+    }
+
+    private void chooseBackgroundImage() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Выберите фон главной страницы");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                "Изображения", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+        Path current = parseOptionalPath(backgroundImagePath.getText());
+        if (current != null && Files.isRegularFile(current)) {
+            chooser.setInitialDirectory(current.getParent().toFile());
+            chooser.setInitialFileName(current.getFileName().toString());
+        }
+        java.io.File selected = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+        if (selected != null) {
+            backgroundImagePath.setText(selected.toPath().toAbsolutePath().normalize().toString());
+            saveSettings();
+        }
+    }
+
+    private Path parseOptionalPath(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Path.of(text.strip()).toAbsolutePath().normalize();
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private void showError(String title, String message) {

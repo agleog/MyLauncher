@@ -37,6 +37,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
@@ -246,12 +247,16 @@ public final class Main extends Application {
         topBar.getChildren().addAll(updateStatusLabel, updateButton,
                 avatar, account, accountPicker, accountButton, logoutButton);
 
-        VBox hero = new VBox(18);
+        StackPane hero = new StackPane();
         hero.getStyleClass().add("hero-card");
         hero.setAlignment(Pos.BOTTOM_LEFT);
-        hero.setPadding(new Insets(42));
+        hero.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         VBox.setVgrow(hero, Priority.ALWAYS);
 
+        VBox heroContent = new VBox(18);
+        heroContent.setAlignment(Pos.BOTTOM_LEFT);
+        heroContent.setPadding(new Insets(42));
+        heroContent.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         Label eyebrow = new Label("ВАШЕ ПРИКЛЮЧЕНИЕ НАЧИНАЕТСЯ ЗДЕСЬ");
         eyebrow.getStyleClass().add("eyebrow");
         Label heading = new Label("Добро пожаловать\nв MyLauncher");
@@ -259,7 +264,9 @@ public final class Main extends Application {
         heading.setWrapText(true);
         Label description = new Label("Лаунчер для Minecraft 1.21.1 с NeoForge 21.1.251");
         description.getStyleClass().add("hero-description");
-        hero.getChildren().addAll(eyebrow, heading, description);
+        heroContent.getChildren().addAll(eyebrow, heading, description);
+        hero.getChildren().add(heroContent);
+        applyHeroBackground(hero);
 
         HBox statusRow = new HBox(18);
         statusRow.setAlignment(Pos.CENTER_LEFT);
@@ -317,6 +324,39 @@ public final class Main extends Application {
 
         page.getChildren().addAll(topBar, accountState, hero, statusRow, note);
         return page;
+    }
+
+    private void applyHeroBackground(StackPane hero) {
+        try {
+            String configuredPath = settingsManager.load().backgroundImagePath();
+            if (configuredPath == null || configuredPath.isBlank()) {
+                return;
+            }
+            java.nio.file.Path imagePath = java.nio.file.Path.of(configuredPath);
+            if (!java.nio.file.Files.isRegularFile(imagePath)) {
+                return;
+            }
+            Image image = new Image(imagePath.toUri().toString(), false);
+            if (image.isError()) {
+                throw new IOException("JavaFX не смог прочитать изображение: " + image.getException());
+            }
+            ImageView background = new ImageView(image);
+            background.setManaged(false);
+            background.setPreserveRatio(false);
+            background.setSmooth(true);
+            background.fitWidthProperty().bind(hero.widthProperty());
+            background.fitHeightProperty().bind(hero.heightProperty());
+            background.setMouseTransparent(true);
+            javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
+            clip.widthProperty().bind(hero.widthProperty());
+            clip.heightProperty().bind(hero.heightProperty());
+            clip.setArcWidth(20);
+            clip.setArcHeight(20);
+            background.setClip(clip);
+            hero.getChildren().add(0, background);
+        } catch (IOException | RuntimeException exception) {
+            System.err.println("MyLauncher could not load the configured home background: " + safeMessage(exception));
+        }
     }
 
     private void checkForUpdates() {

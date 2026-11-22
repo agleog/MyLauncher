@@ -20,7 +20,8 @@ class SettingsManagerTest {
         LauncherSettings expected = new LauncherSettings(
                 6, 1920, 1080, true, "-XX:+UseG1GC",
                 temporaryDirectory.resolve("Launcher").toString(),
-                temporaryDirectory.resolve("Game files").toString()
+                temporaryDirectory.resolve("Game files").toString(),
+                temporaryDirectory.resolve("background.png").toString()
         );
 
         manager.save(expected);

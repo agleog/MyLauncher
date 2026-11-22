@@ -166,7 +166,8 @@ public final class MinecraftGameLauncher {
         placeholders.put("user_type", "legacy");
         placeholders.put("version_type", "release");
         placeholders.put("launcher_name", "MyLauncher");
-        placeholders.put("launcher_version", "0.3.0");
+        String launcherVersion = MinecraftGameLauncher.class.getPackage().getImplementationVersion();
+        placeholders.put("launcher_version", launcherVersion == null ? "development" : launcherVersion);
         placeholders.put("classpath", classpathValue);
         placeholders.put("classpath_separator", FileSystemValues.PATH_SEPARATOR);
         placeholders.put("library_directory", librariesRoot.toString());
